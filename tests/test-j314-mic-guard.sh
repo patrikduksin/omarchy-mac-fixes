@@ -3,8 +3,8 @@
 set -euo pipefail
 
 repo_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-guard="$repo_dir/audio/omarchy-j314-mic-guard"
-unit="$repo_dir/audio/omarchy-j314-mic-guard.service"
+guard="$repo_dir/files/bin/omarchy-j314-mic-guard"
+unit="$repo_dir/files/systemd/user/omarchy-j314-mic-guard.service"
 test_dir="$(mktemp -d)"
 fake_bin="$test_dir/bin"
 call_log="$test_dir/calls"

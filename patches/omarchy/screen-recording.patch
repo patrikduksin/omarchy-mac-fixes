@@ -1,0 +1,11 @@
+diff --git a/bin/omarchy-capture-screenrecording b/bin/omarchy-capture-screenrecording
+--- a/bin/omarchy-capture-screenrecording
++++ b/bin/omarchy-capture-screenrecording
+@@ -240,6 +240,6 @@ launch_wf_recorder() {
+   # -r 60 caps the framerate: capturing a 120 Hz panel at its native rate makes
+   # needlessly large files. wf-recorder's default libx264 is CPU-encoded, which
+   # is the only option on Asahi (no supported hardware encoder).
+-  wf-recorder "${geom_args[@]}" -r 60 "${audio_args[@]}" -f "$filename" 2>>"$LOG_FILE" &
++  wf-recorder --no-dmabuf "${geom_args[@]}" -x yuv420p -r 60 "${audio_args[@]}" -f "$filename" 2>>"$LOG_FILE" &
+   REC_PID=$!
+ }

@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+
+# Installed by omarchy-mac-fixes.
+set -euo pipefail
+
+recorder="$HOME/.local/bin/omarchy-capture-screenrecording"
+system_omarchy="${OMARCHY_SYSTEM_COMMAND:-/usr/bin/omarchy}"
+
+case "${1:-}" in
+screenrecord | screenrecording)
+  shift
+  exec "$recorder" "$@"
+  ;;
+capture)
+  if [[ ${2:-} == "screenrecording" ]]; then
+    shift 2
+    exec "$recorder" "$@"
+  fi
+  ;;
+esac
+
+exec "$system_omarchy" "$@"

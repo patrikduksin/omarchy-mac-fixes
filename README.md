@@ -1,43 +1,54 @@
 # omarchy-mac-fixes
 
-Minimal user configuration fixes for Omarchy Mac.
+Small Apple Silicon fixes that have not reached Omarchy or Asahi Audio yet.
 
-## J314 built-in microphone
-
-Asahi Audio exposes the processed J314 microphone as one `AUX0` channel.
-Quickshell's peak monitor and some WebRTC clients expect a standard mono
-channel, so the Omarchy input meter stays flat and applications may receive no
-input.
-
-The files under `audio/` keep Asahi's three raw beamforming channels and expose
-only the processed output as `MONO`:
-
-- `audio/asahi-j314-mic-mono.json` is the patched Asahi microphone graph.
-- `audio/99-asahi-j314-mic-mono.conf` selects that graph for Apple J314 and
-  keeps the packaged J314 speaker graph.
-
-An installer must replace `@MIC_FILTER_PATH@` in the WirePlumber config with
-the absolute installed path of `asahi-j314-mic-mono.json`.
-
-## J314 microphone hot-plug recovery
-
-`audio/omarchy-j314-mic-guard` listens for PipeWire card, source, and server
-events. It waits 500 ms after the last event, then checks for the processed
-`effect_output.j314-mic` source. If that source is missing, it restarts only
-WirePlumber.
-
-Before recovery, the guard clears the configured headset microphone only when
-the Apple ALSA jack control reports that the headset is unplugged. Other input
-selections remain untouched.
-
-Install and enable the user service at startup:
+## Install
 
 ```bash
-./install-audio-guard.sh
+./install.sh
 ```
 
-Run the mocked regression test with:
+Run it again whenever you want. It rebuilds each patched file from the
+installed upstream copy, so repeated runs produce the same result.
+
+The installer keeps package-owned files untouched. It installs user-owned
+overrides, enables the J314 microphone guard, and adds `~/.local/bin` to the
+front of the Bash and UWSM paths. Restart the desktop session after the first
+install.
+
+Remove the fixes with:
 
 ```bash
+./uninstall.sh
+```
+
+Original files stay under `~/.local/state/omarchy-mac-fixes/backups`.
+
+## Fixes
+
+### Screen recording
+
+[`patches/omarchy/screen-recording.patch`](patches/omarchy/screen-recording.patch)
+makes the Asahi `wf-recorder` fallback avoid DMA-BUF imports and emit
+`yuv420p`. The installer applies it to a user-owned copy of the Omarchy
+command.
+
+### J314 microphone channel
+
+[`patches/asahi-audio/j314-mic-mono.patch`](patches/asahi-audio/j314-mic-mono.patch)
+changes the processed microphone output from `AUX0` to `MONO`. The installer
+patches a copy of the stock Asahi graph and selects it with a user WirePlumber
+override.
+
+### J314 microphone hot-plug recovery
+
+[`files/bin/omarchy-j314-mic-guard`](files/bin/omarchy-j314-mic-guard) watches
+PipeWire events and restarts WirePlumber only when the processed microphone
+disappears. Its user service starts automatically.
+
+## Test
+
+```bash
+./tests/test-install.sh
 ./tests/test-j314-mic-guard.sh
 ```
