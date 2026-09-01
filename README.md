@@ -1,14 +1,20 @@
 # omarchy-mac-fixes
 
-The experimental J314 audio patch was removed on September 1, 2026. The live
-machine was returned to packaged Omarchy Mac, Asahi Audio, PipeWire, and
-WirePlumber configuration.
+Minimal user configuration fixes for Omarchy Mac.
 
-The experiment attempted to repair audio graphs and manage defaults across
-USB-C and 3.5 mm hot-plug events. Automatic recovery caused repeatable crashes
-in Quickshell 0.3.1 and eventually WirePlumber itself, so none of the patch is
-kept on `main`.
+## J314 built-in microphone
 
-The earlier implementation remains available in Git history for diagnosis.
-Do not restore it as-is. A future attempt should start from the packaged audio
-configuration and reproduce the hot-plug failure before changing any files.
+Asahi Audio exposes the processed J314 microphone as one `AUX0` channel.
+Quickshell's peak monitor and some WebRTC clients expect a standard mono
+channel, so the Omarchy input meter stays flat and applications may receive no
+input.
+
+The files under `audio/` keep Asahi's three raw beamforming channels and expose
+only the processed output as `MONO`:
+
+- `audio/asahi-j314-mic-mono.json` is the patched Asahi microphone graph.
+- `audio/99-asahi-j314-mic-mono.conf` selects that graph for Apple J314 and
+  keeps the packaged J314 speaker graph.
+
+An installer must replace `@MIC_FILTER_PATH@` in the WirePlumber config with
+the absolute installed path of `asahi-j314-mic-mono.json`.
