@@ -12,11 +12,23 @@ This repository tracks the local audio changes needed on this machine:
   `MacBook Built-in Speakers`;
 - keeps the Asahi speaker and microphone DSP graphs intact;
 - detects broken PipeWire graphs after USB-C or 3.5 mm audio changes and
-  rebuilds them automatically.
+  rebuilds them automatically;
+- selects newly connected audio devices, moves active application streams,
+  and returns to the MacBook devices after external devices disconnect.
 
-The recovery guard restarts user audio services only when the MacBook
-microphone is missing or duplicate source or sink names exist. Recovery causes
-a short audio interruption.
+The audio guard checks the graph every two seconds. It restarts WirePlumber
+when a required MacBook device is missing or duplicate source or sink names
+exist. It rebuilds PipeWire only if restarting WirePlumber does not repair the
+graph. Recovery causes a short audio interruption.
+
+When several external devices are connected, the newest one becomes the
+default. Disconnecting it selects another external device if one remains.
+Otherwise, the guard selects the MacBook microphone or speakers. The guard
+moves active application streams when the selected device changes.
+
+For the 3.5 mm jack, the guard reads the Apple ALSA jack controls instead of
+trusting PipeWire's node list. This prevents stale headset nodes from being
+selected after unplugging the cable.
 
 ## Install on a clean machine
 

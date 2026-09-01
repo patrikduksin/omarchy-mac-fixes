@@ -1,5 +1,5 @@
 [Unit]
-Description=Recover PipeWire after broken audio hot-plug events
+Description=Manage and recover audio devices after hot-plug events
 Wants=pipewire.socket pipewire-pulse.socket wireplumber.service
 After=pipewire.socket pipewire-pulse.socket pipewire.service pipewire-pulse.service wireplumber.service
 
