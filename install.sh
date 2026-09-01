@@ -41,6 +41,9 @@ render "$repo_dir/audio/omarchy-audio-graph-guard.service.in" \
 
 systemctl --user daemon-reload
 systemctl --user enable omarchy-audio-graph-guard.service
+if ! loginctl enable-linger "$USER"; then
+  printf 'Warning: could not enable lingering; the guard will start at login instead of system boot.\n' >&2
+fi
 systemctl --user stop omarchy-audio-graph-guard.service 2>/dev/null || true
 systemctl --user kill --kill-whom=all --signal=SIGKILL wireplumber.service 2>/dev/null || true
 systemctl --user stop pipewire-pulse.socket pipewire-pulse.service pipewire.socket pipewire.service 2>/dev/null || true

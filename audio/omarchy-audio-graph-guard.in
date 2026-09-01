@@ -82,6 +82,14 @@ if [[ "${1:-}" == "--recover" ]]; then
   exit
 fi
 
+# At boot, the user manager can reach default.target a moment before the
+# PipeWire graph has finished creating the Asahi DSP nodes. Give it a short
+# grace period so normal initialization is not mistaken for graph failure.
+for _ in {1..20}; do
+  audio_graph_is_healthy && break
+  sleep 0.25
+done
+
 while true; do
   rebuild_audio_graph
 

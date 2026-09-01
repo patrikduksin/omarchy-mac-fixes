@@ -36,7 +36,9 @@ cd ~/Work/omarchy-mac-fixes
 
 The installer refuses to run on hardware other than Apple J314. It renders
 the current home directory into paths that WirePlumber and systemd require,
-enables the recovery guard, and rebuilds the audio graph.
+enables user lingering so the guard starts during system boot, enables the
+recovery guard, and rebuilds the audio graph. If logind refuses to enable
+lingering, the guard still starts when the user logs in.
 
 ## Verify
 
