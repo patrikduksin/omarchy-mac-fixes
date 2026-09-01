@@ -1,0 +1,12 @@
+[Unit]
+Description=Recover PipeWire after broken audio hot-plug events
+After=pipewire.service pipewire-pulse.service wireplumber.service
+
+[Service]
+Type=simple
+ExecStart=@HOME@/.local/bin/omarchy-audio-graph-guard
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=default.target

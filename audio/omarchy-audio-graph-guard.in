@@ -1,0 +1,98 @@
+#!/usr/bin/env bash
+
+set -u
+
+runtime_dir="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+lock_file="$runtime_dir/omarchy-audio-graph-guard.lock"
+stamp_file="$runtime_dir/omarchy-audio-graph-guard.last-rebuild"
+
+audio_snapshot() {
+  timeout 3 pactl list short "$1" 2>/dev/null
+}
+
+has_duplicate_names() {
+  awk '
+    $2 !~ /\.monitor$/ { count[$2]++ }
+    END {
+      for (name in count)
+        if (count[name] > 1)
+          exit 0
+      exit 1
+    }
+  '
+}
+
+audio_graph_is_healthy() {
+  local sources sinks mac_mic_count
+
+  sources="$(audio_snapshot sources)" || return 1
+  sinks="$(audio_snapshot sinks)" || return 1
+
+  mac_mic_count="$(awk '$2 == "effect_output.j314-mic" { count++ } END { print count + 0 }' <<<"$sources")"
+  [[ "$mac_mic_count" -eq 1 ]] || return 1
+
+  has_duplicate_names <<<"$sources" && return 1
+  has_duplicate_names <<<"$sinks" && return 1
+  return 0
+}
+
+rebuild_audio_graph() {
+  local now last_rebuild=0
+
+  exec 9>"$lock_file"
+  flock -n 9 || return 0
+
+  audio_graph_is_healthy && return 0
+
+  now="$(date +%s)"
+  if [[ -e "$stamp_file" ]]; then
+    last_rebuild="$(stat -c %Y "$stamp_file" 2>/dev/null || printf 0)"
+  fi
+  (( now - last_rebuild >= 10 )) || return 0
+  touch "$stamp_file"
+
+  logger -t omarchy-audio-graph-guard "Broken audio graph detected; rebuilding PipeWire and WirePlumber"
+
+  systemctl --user kill --kill-whom=all --signal=SIGKILL wireplumber.service 2>/dev/null || true
+  systemctl --user stop pipewire-pulse.socket pipewire-pulse.service pipewire.socket pipewire.service || true
+  systemctl --user reset-failed wireplumber.service
+  systemctl --user start pipewire.socket pipewire.service wireplumber.service pipewire-pulse.socket pipewire-pulse.service
+
+  for _ in {1..20}; do
+    audio_graph_is_healthy && break
+    sleep 0.25
+  done
+
+  /usr/share/omarchy/bin/omarchy restart shell >/dev/null 2>&1 || true
+
+  if audio_graph_is_healthy; then
+    logger -t omarchy-audio-graph-guard "Audio graph recovered"
+  else
+    logger -t omarchy-audio-graph-guard "Audio graph rebuild completed but health check still fails"
+  fi
+}
+
+if [[ "${1:-}" == "--check" ]]; then
+  audio_graph_is_healthy
+  exit
+fi
+
+if [[ "${1:-}" == "--recover" ]]; then
+  rebuild_audio_graph
+  exit
+fi
+
+while true; do
+  rebuild_audio_graph
+
+  pactl subscribe 2>/dev/null | while IFS= read -r event; do
+    case "$event" in
+      *" on card "*|*" on source "*|*" on sink "*|*" on server "*)
+        sleep 2
+        rebuild_audio_graph
+        ;;
+    esac
+  done
+
+  sleep 2
+done

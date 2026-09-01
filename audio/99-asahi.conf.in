@@ -1,0 +1,66 @@
+# Local J314 profile. This shadows the packaged all-model profile so the
+# processed microphone uses a standard mono channel name that applications
+# and Quickshell understand.
+context.modules = [
+  {
+    name = libpipewire-module-rt
+    args = {
+      nice.level = -11
+      uclamp.min = 0
+      uclamp.max = 128
+    }
+    flags = [ ifexists nofail ]
+  }
+]
+
+monitor.alsa.rules = [
+  {
+    matches = [ { api.alsa.path = "~hw:AppleJ[0-9][0-9][0-9],1" } ]
+    actions = { update-props = {
+      audio.allowed-rates = [ 96000 88200 48000 44100 ]
+      node.name = "alsa_output.platform-sound.RawSpeakers"
+      node.description = "Raw Speaker Device (do not use)"
+      node.nick = "RawSpeakers"
+    } }
+  }
+  {
+    matches = [ { api.alsa.path = "~hw:AppleJ[0-9][0-9][0-9]HPAI,0" } ]
+    actions = { update-props = {
+      node.name = "alsa_input.platform-sound.RawMics"
+      node.description = "Raw Mic Device (do not use)"
+      node.nick = "RawMics"
+    } }
+  }
+]
+
+node.software-dsp.rules = [
+  {
+    matches = [ { api.alsa.path = "hw:AppleJ314,1" } ]
+    actions = { create-filter = {
+      filter-path = "@HOME@/.config/wireplumber/asahi-j314-speakers.json"
+      hide-parent = true
+    } }
+  }
+  {
+    matches = [ { api.alsa.path = "hw:AppleJ314HPAI,0" } ]
+    actions = { create-filter = {
+      filter-path = "@HOME@/.config/wireplumber/asahi-j314-mic.json"
+      hide-parent = true
+    } }
+  }
+]
+
+wireplumber.components = [
+  {
+    name = device/asahi-lock-volume.lua
+    type = script/lua
+    provides = custom.asahi
+  }
+]
+
+wireplumber.profiles = {
+  main = {
+    custom.asahi = required
+    node.software-dsp = required
+  }
+}
