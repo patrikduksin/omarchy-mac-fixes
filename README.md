@@ -18,3 +18,26 @@ only the processed output as `MONO`:
 
 An installer must replace `@MIC_FILTER_PATH@` in the WirePlumber config with
 the absolute installed path of `asahi-j314-mic-mono.json`.
+
+## J314 microphone hot-plug recovery
+
+`audio/omarchy-j314-mic-guard` listens for PipeWire card, source, and server
+events. It waits 500 ms after the last event, then checks for the processed
+`effect_output.j314-mic` source. If that source is missing, it restarts only
+WirePlumber.
+
+Before recovery, the guard clears the configured headset microphone only when
+the Apple ALSA jack control reports that the headset is unplugged. Other input
+selections remain untouched.
+
+Install and enable the user service at startup:
+
+```bash
+./install-audio-guard.sh
+```
+
+Run the mocked regression test with:
+
+```bash
+./tests/test-j314-mic-guard.sh
+```

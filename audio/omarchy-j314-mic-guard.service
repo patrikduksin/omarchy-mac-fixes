@@ -1,0 +1,14 @@
+[Unit]
+Description=Recover the J314 microphone DSP after audio hot-plug events
+Wants=wireplumber.service pipewire-pulse.service
+After=wireplumber.service pipewire-pulse.service
+
+[Service]
+Type=simple
+ExecStartPre=%h/.local/bin/omarchy-j314-mic-guard --startup
+ExecStart=%h/.local/bin/omarchy-j314-mic-guard --monitor
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,121 @@
+#!/usr/bin/env bash
+
+set -u
+
+builtin_source="effect_output.j314-mic"
+headset_source="alsa_input.platform-sound.HiFi__Headset__source"
+proc_asound="${OMARCHY_J314_MIC_PROC_ASOUND:-/proc/asound}"
+debounce_seconds="${OMARCHY_J314_MIC_DEBOUNCE_SECONDS:-0.5}"
+recovery_timeout_seconds="${OMARCHY_J314_MIC_RECOVERY_TIMEOUT_SECONDS:-5}"
+startup_grace_seconds="${OMARCHY_J314_MIC_STARTUP_GRACE_SECONDS:-5}"
+recovery_cooldown_seconds="${OMARCHY_J314_MIC_RECOVERY_COOLDOWN_SECONDS:-10}"
+last_recovery_at=0
+
+mic_exists() {
+  timeout 2 pactl list short sources 2>/dev/null |
+    awk -v source="$builtin_source" '$2 == source { found=1 } END { exit !found }'
+}
+
+configured_source() {
+  timeout 2 pw-metadata -n default 2>/dev/null |
+    sed -n "/key:'default.configured.audio.source'/s/.*\"name\"[[:space:]]*:[[:space:]]*\"\([^\"]*\)\".*/\1/p" |
+    tail -n 1
+}
+
+headset_is_disconnected() {
+  local card_id card_index
+
+  for card_id in "$proc_asound"/card*/id; do
+    [[ -r "$card_id" ]] || continue
+    [[ "$(<"$card_id")" == "AppleJ314" ]] || continue
+    card_index="${card_id%/id}"
+    card_index="${card_index##*/card}"
+    timeout 2 amixer -c "$card_index" cget "iface=CARD,name='Headset Mic Jack'" 2>/dev/null |
+      grep -q 'values=off'
+    return
+  done
+
+  return 1
+}
+
+clear_stale_headset_default() {
+  if [[ "$(configured_source)" == "$headset_source" ]] && headset_is_disconnected; then
+    wpctl clear-default 1 2>/dev/null || true
+    logger -t omarchy-j314-mic-guard "Cleared unplugged headset microphone default"
+  fi
+}
+
+wait_for_mic() {
+  local timeout_seconds="$1" deadline
+
+  mic_exists && return 0
+  deadline=$((SECONDS + timeout_seconds))
+  while (( SECONDS < deadline )); do
+    sleep 0.25
+    mic_exists && return 0
+  done
+  return 1
+}
+
+recover_mic() {
+  mic_exists && return 0
+
+  clear_stale_headset_default
+  logger -t omarchy-j314-mic-guard "J314 DSP microphone is missing; restarting WirePlumber"
+  systemctl --user restart wireplumber.service
+
+  if wait_for_mic "$recovery_timeout_seconds"; then
+    logger -t omarchy-j314-mic-guard "J314 DSP microphone recovered"
+  else
+    logger -t omarchy-j314-mic-guard "J314 DSP microphone is still missing after WirePlumber restart"
+  fi
+}
+
+relevant_event() {
+  case "$1" in
+    *" on card "*|*" on source "*|*" on server "*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+recover_after_quiet_period() {
+  local event now
+
+  while IFS= read -r -t "$debounce_seconds" event; do
+    relevant_event "$event" || continue
+  done
+
+  mic_exists && return 0
+  now="$(date +%s)"
+  (( now - last_recovery_at >= recovery_cooldown_seconds )) || return 0
+  last_recovery_at="$now"
+  recover_mic
+}
+
+monitor_events() {
+  local event
+
+  while IFS= read -r event; do
+    relevant_event "$event" || continue
+    recover_after_quiet_period
+  done < <(pactl subscribe 2>/dev/null)
+}
+
+case "${1:---monitor}" in
+  --check)
+    mic_exists
+    ;;
+  --recover)
+    recover_mic
+    ;;
+  --startup)
+    wait_for_mic "$startup_grace_seconds" || recover_mic
+    ;;
+  --monitor)
+    monitor_events
+    ;;
+  *)
+    echo "Usage: ${0##*/} [--check|--recover|--startup|--monitor]" >&2
+    exit 2
+    ;;
+esac
